@@ -23,8 +23,8 @@ checkpoint_dir: trained_models/baseline_rnn/checkpoint # directory to save check
 init_from_checkpoint: false # whether to initialize the model from a checkpoint
 init_checkpoint_path: None # path to the checkpoint to initialize the model from, if any
 save_best_checkpoint: true # whether to save the best checkpoint based on validation metrics
-save_all_val_steps: false # whether to save checkpoints at all validation steps
-save_final_model: false # whether to save the final model after training
+save_all_val_steps: true # whether to save checkpoints at all validation steps
+save_final_model: true # whether to save the final model after training
 save_val_metrics: true # whether to save validation metrics during training
 early_stopping: false # whether to use early stopping based on validation metrics
 early_stopping_val_steps: 20 # number of validation steps to wait before stopping training if no improvement is seen
@@ -51,7 +51,7 @@ grad_norm_clip_value: 10 # gradient norm clipping value
 batches_per_train_log: 200 # number of batches per training log
 batches_per_val_step: 2000 # number of batches per validation step
 
-batches_per_save: 0 # number of batches per save
+batches_per_save: 5000 # number of batches per save
 log_individual_day_val_PER: true # whether to log individual day validation performance
 log_val_skip_logs: false # whether to skip logging validation metrics
 save_val_logits: true # whether to save validation logits
