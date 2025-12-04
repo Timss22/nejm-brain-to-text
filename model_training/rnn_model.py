@@ -1,6 +1,8 @@
 import torch 
 from torch import nn
 
+from contextual_normalizer import ContextualNormalizer
+
 class GRUDecoder(nn.Module):
     '''
     Defines the GRU decoder
@@ -17,6 +19,7 @@ class GRUDecoder(nn.Module):
                  n_layers = 5, 
                  patch_size = 0,
                  patch_stride = 0,
+                 contextual_normalizer_cfg = None,
                  ):
         '''
         neural_dim  (int)      - number of channels in a single timestep (e.g. 512)
@@ -42,6 +45,21 @@ class GRUDecoder(nn.Module):
         
         self.patch_size = patch_size
         self.patch_stride = patch_stride
+
+        self.contextual_normalizer = None
+        self.contextual_normalizer_cfg = contextual_normalizer_cfg or {}
+        if self.contextual_normalizer_cfg.get('enabled', False):
+            self.contextual_normalizer = ContextualNormalizer(
+                neural_dim=self.neural_dim,
+                n_days=self.n_days,
+                hidden_dim=self.contextual_normalizer_cfg.get('hidden_dim', self.neural_dim),
+                n_layers=self.contextual_normalizer_cfg.get('n_layers', 2),
+                n_heads=self.contextual_normalizer_cfg.get('n_heads', 8),
+                ff_multiplier=self.contextual_normalizer_cfg.get('ff_multiplier', 2),
+                dropout=self.contextual_normalizer_cfg.get('dropout', 0.1),
+                max_blocks=self.contextual_normalizer_cfg.get('max_blocks', 512),
+                use_block_embedding=self.contextual_normalizer_cfg.get('use_block_embedding', True),
+            )
 
         # Parameters for the day-specific input layers
         self.day_layer_activation = nn.Softsign() # basically a shallower tanh 
@@ -85,11 +103,14 @@ class GRUDecoder(nn.Module):
         # Learnable initial hidden states
         self.h0 = nn.Parameter(nn.init.xavier_uniform_(torch.zeros(1, 1, self.n_units)))
 
-    def forward(self, x, day_idx, states = None, return_state = False):
+    def forward(self, x, day_idx, block_idx = None, states = None, return_state = False):
         '''
         x        (tensor)  - batch of examples (trials) of shape: (batch_size, time_series_length, neural_dim)
         day_idx  (tensor)  - tensor which is a list of day indexs corresponding to the day of each example in the batch x. 
         '''
+
+        if self.contextual_normalizer is not None:
+            x = self.contextual_normalizer(x, day_idx, block_idx)
 
         # Apply day-specific layer to (hopefully) project neural data from the different days to the same latent space
         day_weights = torch.stack([self.day_weights[i] for i in day_idx], dim=0)

@@ -117,6 +117,10 @@ class BrainToTextDecoder_Trainer:
             torch.manual_seed(self.args['seed'])
 
         # Initialize the model 
+        context_norm_cfg = None
+        if 'contextual_normalizer' in self.args['model']:
+            context_norm_cfg = OmegaConf.to_container(self.args['model']['contextual_normalizer'], resolve=True)
+
         self.model = GRUDecoder(
             neural_dim = self.args['model']['n_input_features'],
             n_units = self.args['model']['n_units'],
@@ -127,6 +131,7 @@ class BrainToTextDecoder_Trainer:
             n_layers = self.args['model']['n_layers'],
             patch_size = self.args['model']['patch_size'],
             patch_stride = self.args['model']['patch_stride'],
+            contextual_normalizer_cfg = context_norm_cfg,
         )
 
         # Call torch.compile to speed up training
@@ -522,6 +527,7 @@ class BrainToTextDecoder_Trainer:
             n_time_steps = batch['n_time_steps'].to(self.device)
             phone_seq_lens = batch['phone_seq_lens'].to(self.device)
             day_indicies = batch['day_indicies'].to(self.device)
+            block_indicies = batch['block_nums'].to(self.device)
 
             # Use autocast for efficiency
             with torch.autocast(device_type = "cuda", enabled = self.args['use_amp'], dtype = torch.bfloat16):
@@ -532,7 +538,7 @@ class BrainToTextDecoder_Trainer:
                 adjusted_lens = ((n_time_steps - self.args['model']['patch_size']) / self.args['model']['patch_stride'] + 1).to(torch.int32)
 
                 # Get phoneme predictions 
-                logits = self.model(features, day_indicies)
+                logits = self.model(features, day_indicies, block_indicies)
 
                 # Calculate CTC Loss
                 loss = self.ctc_loss(
@@ -691,6 +697,7 @@ class BrainToTextDecoder_Trainer:
             n_time_steps = batch['n_time_steps'].to(self.device)
             phone_seq_lens = batch['phone_seq_lens'].to(self.device)
             day_indicies = batch['day_indicies'].to(self.device)
+            block_indicies = batch['block_nums'].to(self.device)
 
             # Determine if we should perform validation on this batch
             day = day_indicies[0].item()
@@ -706,7 +713,7 @@ class BrainToTextDecoder_Trainer:
 
                     adjusted_lens = ((n_time_steps - self.args['model']['patch_size']) / self.args['model']['patch_stride'] + 1).to(torch.int32)
 
-                    logits = self.model(features, day_indicies)
+                logits = self.model(features, day_indicies, block_indicies)
     
                     loss = self.ctc_loss(
                         torch.permute(logits.log_softmax(2), [1, 0, 2]),

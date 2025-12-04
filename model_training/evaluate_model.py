@@ -56,6 +56,10 @@ else:
     device = torch.device('cpu')
 
 # define model
+context_norm_cfg = None
+if 'contextual_normalizer' in model_args['model']:
+    context_norm_cfg = OmegaConf.to_container(model_args['model']['contextual_normalizer'], resolve=True)
+
 model = GRUDecoder(
     neural_dim = model_args['model']['n_input_features'],
     n_units = model_args['model']['n_units'], 
@@ -66,6 +70,7 @@ model = GRUDecoder(
     n_layers = model_args['model']['n_layers'],
     patch_size = model_args['model']['patch_size'],
     patch_stride = model_args['model']['patch_stride'],
+    contextual_normalizer_cfg = context_norm_cfg,
 )
 
 # load model weights
@@ -118,7 +123,8 @@ with tqdm(total=total_test_trials, desc='Predicting phoneme sequences', unit='tr
             neural_input = torch.tensor(neural_input, device=device, dtype=torch.bfloat16)
 
             # run decoding step
-            logits = runSingleDecodingStep(neural_input, input_layer, model, model_args, device)
+            block_idx = data['block_num'][trial]
+            logits = runSingleDecodingStep(neural_input, input_layer, block_idx, model, model_args, device)
             data['logits'].append(logits)
 
             pbar.update(1)
